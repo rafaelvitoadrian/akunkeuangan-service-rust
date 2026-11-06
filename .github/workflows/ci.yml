@@ -1,0 +1,51 @@
+name: Rust and PostgreSQL
+
+"on":
+  push:
+    branches: [main]
+    tags: ['v*', '[0-9]*']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: akun_ci
+          POSTGRES_USER: akun_ci
+          POSTGRES_PASSWORD: isolated_ci_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U akun_ci -d akun_ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgres://akun_ci:isolated_ci_password@localhost:5432/akun_ci
+      APP_UTC_OFFSET_MINUTES: '420'
+      CI_COMMIT_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Set Rust toolchain
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup override set 1.99.1
+      - name: Validate release version
+        run: sh scripts/publish-postgres-image.sh --check
+      - name: Unit and contract tests
+        run: cargo test --locked --no-default-features --features postgres
+      - name: PostgreSQL integration tests
+        run: cargo test --locked --no-default-features --features postgres --test postgres_repository -- --ignored
+      - name: Build runtime image
+        run: docker build --build-arg VERSION=1.0.0 -t akunkeuangan-rs:ci .
+      - name: Smoke test final image
+        run: sh scripts/test-postgres-image.sh akunkeuangan-rs:ci

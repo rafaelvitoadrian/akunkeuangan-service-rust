@@ -1,0 +1,80 @@
+[package]
+name = "akunkeuangan_service"
+version = "1.0.0"
+edition = "2021"
+license = "MIT"
+description = "Rust financial API with PostgreSQL and legacy HTTP contract compatibility"
+repository = "https://github.com/rafaelvitoadrian/akunkeuangan-service-rust"
+readme = "README.md"
+publish = false
+
+[lib]
+name = "akunkeuangan_service"
+path = "src/lib.rs"
+
+[[bin]]
+name = "akunkeuangan_service"
+path = "src/main.rs"
+
+# Kompatibilitas kontrak eksternal dengan akunkeuangan-service-v2 (Java/Spring Boot 2.7.18)
+# HTTP + Oracle existing schema or PostgreSQL with startup migrations.
+# JMS (XEMP/Kryo/ObjectMessage) remains deferred.
+
+[dependencies]
+# HTTP framework — routing & error semantics harus meniru Spring MVC
+axum = { version = "0.7", features = ["multipart"] }
+tokio = { version = "1", features = ["full"] }
+
+# JSON — serde dikonfigurasi eksplisit untuk meniru Jackson (lihat src/models/)
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] } # preserve_order: urutan field mengikuti urutan deklarasi (meniru Jackson pada POJO)
+
+# Desimal presisi untuk uang (BigDecimal Java) — JANGAN f64
+rust_decimal = { version = "1", features = ["serde-with-arbitrary-precision"] }
+rust_decimal_macros = "1"
+
+# Waktu — format tanggal eksplisit sesuai @JsonFormat di entity Java
+chrono = { version = "0.4", features = ["serde"] }
+
+# JWT HS512 — meniru io.jsonwebtoken (jjwt 0.9.0)
+jsonwebtoken = "9"
+hmac = "0.12"
+sha2 = "0.10"      # SHA-256 (PasswordHelper) & SHA-1 via sha1
+sha1 = "0.10"      # SHA-1 (PasswordHashUtil, login lama)
+hex = "0.4"
+rand = "0.8"
+
+# DB Oracle — schema existing, tanpa perubahan.
+# Rust tidak punya driver Oracle pure-Rust. Crate `oracle` (ODPI-C) butuh
+# Oracle Instant Client — diaktifkan via feature "oracle" saat tersedia.
+# PostgreSQL is the default build; Oracle remains an opt-in legacy feature.
+oracle = { version = "0.6", optional = true, features = ["chrono"] }
+sqlx = { version = "0.8.6", optional = true, default-features = false, features = ["runtime-tokio-rustls", "postgres", "migrate", "macros"] }
+flate2 = "1"
+
+# Util
+tower = "0.5"
+tower-http = { version = "0.6", features = ["trace", "cors", "compression-gzip"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+once_cell = "1"
+base64 = "0.22"
+uuid = { version = "1", features = ["v4"] }
+regex = "1"
+thiserror = "2"
+anyhow = "1"
+percent-encoding = "2"
+
+[features]
+default = ["postgres"]
+oracle = ["dep:oracle"]
+postgres = ["dep:sqlx"]
+
+[dev-dependencies]
+# Integration test memanggil router langsung (tanpa network) — oneshot
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+
+[[example]]
+name = "oracle_smoke"
+required-features = ["oracle"]

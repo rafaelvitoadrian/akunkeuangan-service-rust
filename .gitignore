@@ -1,0 +1,10 @@
+/target
+/.runtime/
+__pycache__/
+/.env
+/.env.*
+!/.env.example
+!/.env.compose.example
+!/.env.postgres.example
+
+!/.env.opensource.example

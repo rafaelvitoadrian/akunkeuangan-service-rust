@@ -1,0 +1,22 @@
+# Run the PostgreSQL image already built and pushed by this project's GitLab CI.
+# Database credentials stay in the ignored local .env.postgres file.
+services:
+  akunkeuangan-rs:
+    image: ${AKUN_POSTGRES_IMAGE:-registry.gitlab.com/rafaelvito11/akunkeuangan-service-rust:latest}
+    env_file:
+      - .env.postgres
+    environment:
+      REPO_BACKEND: postgres
+      SERVER_PORT: "9091"
+      APP_LOG_FILE: ""
+    ports:
+      - "${HOST_PORT:-9091}:9091"
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

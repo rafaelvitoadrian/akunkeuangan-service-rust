@@ -1,0 +1,25 @@
+# Run the API against an existing PostgreSQL server (e.g. Railway).
+# No local database service is started by this Compose file.
+services:
+  akunkeuangan-rs:
+    image: ${AKUN_POSTGRES_IMAGE:-akunkeuangan-rs:postgres-local}
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    env_file:
+      - .env.postgres
+    environment:
+      REPO_BACKEND: postgres
+      SERVER_PORT: "9091"
+      APP_LOG_FILE: ""
+    ports:
+      - "${HOST_PORT:-9091}:9091"
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

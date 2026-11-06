@@ -1,0 +1,4 @@
+* text=auto eol=lf
+# SQLx migration checksums must be identical on Windows and Linux.
+migrations/**/*.sql text eol=lf
+scripts/*.sh text eol=lf

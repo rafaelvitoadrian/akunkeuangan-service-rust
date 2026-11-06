@@ -1,0 +1,72 @@
+stages:
+  - test
+  - image
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
+      when: never
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+
+variables:
+  CARGO_HOME: "$CI_PROJECT_DIR/.cache/cargo"
+  AKUNKEUANGAN_IMAGE: "$CI_REGISTRY_IMAGE"
+
+cache:
+  key:
+    files:
+      - Cargo.lock
+  paths:
+    - .cache/cargo/registry/
+    - .cache/cargo/git/
+
+postgres-tests:
+  stage: test
+  image: rust:1.99.1-bookworm
+  services:
+    - name: postgres:17-alpine
+      alias: postgres
+  variables:
+    POSTGRES_DB: akunkeuangan_ci
+    POSTGRES_USER: akun_ci
+    POSTGRES_PASSWORD: isolated_ci_password
+    TEST_DATABASE_URL: postgres://akun_ci:isolated_ci_password@postgres:5432/akunkeuangan_ci
+    APP_UTC_OFFSET_MINUTES: "420"
+  script:
+    - sh scripts/publish-postgres-image.sh --check
+    - cargo test --locked --no-default-features --features postgres
+    - cargo test --locked --no-default-features --features postgres --test postgres_repository -- --ignored
+
+postgres-image:
+  stage: image
+  image: docker:28.1.1-cli
+  services:
+    - name: docker:28.1.1-dind
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: /certs
+    DOCKER_TLS_VERIFY: "1"
+    DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+  cache: []
+  needs:
+    - postgres-tests
+  rules:
+    - if: '$CI_COMMIT_TAG'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  before_script:
+    - test "$CI_REGISTRY_IMAGE" = "$AKUNKEUANGAN_IMAGE"
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" --username "$CI_REGISTRY_USER" --password-stdin
+  script:
+    - docker info
+    - VERSION=$(sh scripts/publish-postgres-image.sh --check)
+    - VERSION=$(sh scripts/publish-postgres-image.sh --check)
+    - VERSION=$(sh scripts/publish-postgres-image.sh --check)
+    - VERSION=$(sh scripts/publish-postgres-image.sh --check)
+    - docker build --pull --platform linux/amd64 --build-arg VERSION="$VERSION" --build-arg VCS_REF="$CI_COMMIT_SHA" --build-arg SOURCE="$CI_PROJECT_URL" --tag "$AKUNKEUANGAN_IMAGE:$CI_COMMIT_SHA" .
+    - sh scripts/test-postgres-image.sh "$AKUNKEUANGAN_IMAGE:$CI_COMMIT_SHA"
+    - sh scripts/publish-postgres-image.sh
+  after_script:
+    - docker logout "$CI_REGISTRY" || true

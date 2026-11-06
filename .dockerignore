@@ -1,0 +1,12 @@
+.git
+.gitignore
+.runtime
+.env
+.env.*
+!.env.example
+target
+.cargo
+.cache
+__pycache__
+graphify-out
+docs/*.json
